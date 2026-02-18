@@ -1,0 +1,22 @@
+import streamlit as st
+import joblib
+import numpy as np
+
+model = joblib.load("best_model.pkl")
+
+st.title("Climate Forecasting System")
+humidity = st.slider("Humidity", 0, 100, 60, key="humidity")
+
+hour = st.slider("Hour of Day", 0, 23, 12, key="hour")
+
+day_of_week = st.slider("Day of Week (0=Mon)", 0, 6, 2, key="day")
+
+lag_1 = st.number_input("Last Hour Temperature (lag_1)", value=28.0, key="lag1")
+
+lag_2 = st.number_input("Temperature 2 Hours Ago (lag_2)", value=27.8, key="lag2")
+
+lag_24 = st.number_input("Temperature 24 Hours Ago (lag_24)", value=27.5, key="lag24")
+
+rolling_mean = st.number_input("Rolling Mean (24h)", value=27.8, key="rollmean")
+
+rolling_std = st.number_input("Rolling Std (24h)", value=1.2, key="rollstd")
