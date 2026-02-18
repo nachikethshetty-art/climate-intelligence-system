@@ -1,0 +1,245 @@
+# ==============================
+# 1️⃣ IMPORT LIBRARIES
+# ==============================
+import requests
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from datetime import datetime, timedelta
+
+# ==============================
+# 2️⃣ FETCH 30 DAYS HOURLY DATA
+# ==============================
+latitude = 12.9716
+longitude = 77.5946
+
+end_date = datetime.today().date()
+start_date = end_date - timedelta(days=30)
+
+url = (
+    f"https://archive-api.open-meteo.com/v1/archive?"
+    f"latitude={latitude}&longitude={longitude}"
+    f"&start_date={start_date}&end_date={end_date}"
+    f"&hourly=temperature_2m,relative_humidity_2m"
+)
+
+response = requests.get(url)
+data = response.json()
+
+df = pd.DataFrame({
+    "time": data["hourly"]["time"],
+    "temperature": data["hourly"]["temperature_2m"],
+    "humidity": data["hourly"]["relative_humidity_2m"]
+})
+
+df["time"] = pd.to_datetime(df["time"])
+df.set_index("time", inplace=True)
+
+print("Total Rows:", len(df))
+print(df.head())
+
+# ==============================
+# 3️⃣ CLEANING
+# ==============================
+df = df.dropna()
+
+print("Missing values:")
+print(df.isnull().sum())
+
+# ==============================
+# 4️⃣ BASIC EDA
+# ==============================
+
+# Temperature trend
+plt.figure(figsize=(14,6))
+plt.plot(df["temperature"])
+plt.title("Temperature Over Time")
+plt.show()
+
+# Distribution
+plt.figure(figsize=(8,5))
+sns.histplot(df["temperature"], kde=True)
+plt.title("Temperature Distribution")
+plt.show()
+
+# Correlation
+print("Correlation:")
+print(df[["temperature", "humidity"]].corr())
+
+# ==============================
+# 5️⃣ TIME FEATURES
+# ==============================
+df["hour"] = df.index.hour
+df["day_of_week"] = df.index.dayofweek
+
+print(df.head())
+# Lag features
+df["lag_1"] = df["temperature"].shift(1)
+df["lag_2"] = df["temperature"].shift(2)
+df["lag_24"] = df["temperature"].shift(24)
+df["rolling_mean_24"] = df["temperature"].rolling(24).mean()
+df["rolling_std_24"] = df["temperature"].rolling(24).std()
+df["temp_humidity_interaction"] = df["temperature"] * df["humidity"]
+df = df.dropna()
+print("New shape:", df.shape)
+# Time-based split (80% train, 20% test)
+train_size = int(len(df) * 0.8)
+
+train = df[:train_size]
+test = df[train_size:]
+
+X_train = train.drop("temperature", axis=1)
+y_train = train["temperature"]
+
+X_test = test.drop("temperature", axis=1)
+y_test = test["temperature"]
+
+print("Train size:", X_train.shape)
+print("Test size:", X_test.shape)
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
+
+lr = LinearRegression()
+lr.fit(X_train, y_train)
+
+lr_pred = lr.predict(X_test)
+
+print("Linear Regression Performance")
+print("MAE:", mean_absolute_error(y_test, lr_pred))
+print("RMSE:", np.sqrt(mean_squared_error(y_test, lr_pred)))
+print("R2:", r2_score(y_test, lr_pred))
+from sklearn.ensemble import RandomForestRegressor
+
+rf = RandomForestRegressor(n_estimators=200, random_state=42)
+rf.fit(X_train, y_train)
+
+rf_pred = rf.predict(X_test)
+
+print("\nRandom Forest Performance")
+print("MAE:", mean_absolute_error(y_test, rf_pred))
+print("RMSE:", np.sqrt(mean_squared_error(y_test, rf_pred)))
+print("R2:", r2_score(y_test, rf_pred))
+import matplotlib.pyplot as plt
+
+plt.figure(figsize=(14,6))
+plt.plot(y_test.index, y_test, label="Actual")
+plt.plot(y_test.index, rf_pred, label="RF Prediction")
+plt.legend()
+plt.title("Actual vs Predicted Temperature")
+plt.show()
+import xgboost as xgb
+
+xgbr = xgb.XGBRegressor(n_estimators=200, random_state=42)
+xgbr.fit(X_train, y_train)
+
+xgb_pred = xgbr.predict(X_test)
+
+print("\nXGBoost Performance")
+print("MAE:", mean_absolute_error(y_test, xgb_pred))
+print("RMSE:", np.sqrt(mean_squared_error(y_test, xgb_pred)))
+print("R2:", r2_score(y_test, xgb_pred))
+import pandas as pd
+
+importance = pd.Series(rf.feature_importances_, index=X_train.columns)
+importance = importance.sort_values(ascending=False)
+
+print("\nFeature Importance:")
+print(importance)
+
+importance.plot(kind='bar', figsize=(10,5))
+plt.title("Feature Importance (Random Forest)")
+plt.show()
+df["z_score"] = (df["temperature"] - df["temperature"].mean()) / df["temperature"].std()
+df["anomaly"] = df["z_score"].abs() > 2
+
+plt.figure(figsize=(14,6))
+plt.plot(df["temperature"], label="Temperature")
+plt.scatter(df[df["anomaly"]].index,
+            df[df["anomaly"]]["temperature"],
+            color="red",
+            label="Anomaly")
+plt.legend()
+plt.title("Anomaly Detection using Z-score")
+plt.show()
+
+print("Total anomalies detected:", df["anomaly"].sum())
+import xgboost as xgb
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+import numpy as np
+
+xgbr = xgb.XGBRegressor(
+    n_estimators=300,
+    learning_rate=0.05,
+    max_depth=5,
+    random_state=42
+)
+
+xgbr.fit(X_train, y_train)
+xgb_pred = xgbr.predict(X_test)
+
+print("\nXGBoost Performance")
+print("MAE:", mean_absolute_error(y_test, xgb_pred))
+print("RMSE:", np.sqrt(mean_squared_error(y_test, xgb_pred)))
+print("R2:", r2_score(y_test, xgb_pred))
+import pandas as pd
+import matplotlib.pyplot as plt
+
+importance = pd.Series(xgbr.feature_importances_, index=X_train.columns)
+importance = importance.sort_values(ascending=False)
+
+print("\nXGBoost Feature Importance:")
+print(importance)
+
+importance.plot(kind='bar', figsize=(10,5))
+plt.title("XGBoost Feature Importance")
+plt.show()
+residuals = y_test - xgb_pred
+
+plt.figure(figsize=(8,5))
+plt.hist(residuals, bins=30)
+plt.title("Residual Distribution")
+plt.show()
+
+print("Residual Mean:", residuals.mean())
+from sklearn.ensemble import IsolationForest
+
+iso = IsolationForest(contamination=0.02, random_state=42)
+df["anomaly_iso"] = iso.fit_predict(df[["temperature", "humidity"]])
+
+plt.figure(figsize=(14,6))
+plt.plot(df["temperature"], label="Temperature")
+plt.scatter(
+    df[df["anomaly_iso"] == -1].index,
+    df[df["anomaly_iso"] == -1]["temperature"],
+    color="red",
+    label="Anomaly"
+)
+plt.legend()
+plt.title("Isolation Forest Anomaly Detection")
+plt.show()
+
+print("Total anomalies:", (df["anomaly_iso"] == -1).sum())
+# Predict next hour using latest test sample
+latest_features = X_test.iloc[-1].values.reshape(1, -1)
+next_prediction = xgbr.predict(latest_features)[0]
+
+print("Next hour predicted temperature:", next_prediction)
+
+threshold = 32  # adjust based on your data
+
+if next_prediction > threshold:
+    print("⚠ ALERT: High temperature expected!")
+else:
+    print("Temperature within safe range.")
+# Predict next hour using latest test sample
+latest_features = X_test.iloc[-1].values.reshape(1, -1)
+next_prediction = xgbr.predict(latest_features)[0]
+
+print("Next hour predicted temperature:", next_prediction)
+
+threshold = 32  # adjust based on your data
+
+if next_prediction > threshold:
+    print("⚠ ALERT: High temperature expected!")
+else:
