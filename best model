@@ -1,0 +1,4 @@
+print("Temperature within safe range.")
+import joblib
+
+joblib.dump(lr, "best_model.pkl")
